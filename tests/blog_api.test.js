@@ -8,21 +8,10 @@ const Blog = require('../models/blog')
 const api = supertest(app)
 
 const initialBlogs = [
-  {
-    title: 'React patterns',
-    author: 'Michael Chan',
-    url: 'https://reactpatterns.com/',
-    likes: 7,
-  },
-  {
-    title: 'Canonical string reduction',
-    author: 'Edsger W. Dijkstra',
-    url: 'http://example.com/canonical',
-    likes: 12,
-  },
+  { title: 'React patterns', author: 'Michael Chan', url: 'https://reactpatterns.com/', likes: 7 },
+  { title: 'Canonical string reduction', author: 'Edsger W. Dijkstra', url: 'http://example.com/canonical', likes: 12 },
 ]
 
-// reset the test database before each test
 beforeEach(async () => {
   await Blog.deleteMany({})
   await Blog.insertMany(initialBlogs)
@@ -40,7 +29,75 @@ test('all blogs are returned', async () => {
   assert.strictEqual(response.body.length, initialBlogs.length)
 })
 
-// close the db connection so the test process can exit
+test('the unique identifier is named id', async () => {
+  const response = await api.get('/api/blogs')
+  const blog = response.body[0]
+  assert.ok(blog.id)
+  assert.strictEqual(blog._id, undefined)
+})
+
+test('a valid blog can be added', async () => {
+  const newBlog = {
+    title: 'Test Driven Development',
+    author: 'Kent Beck',
+    url: 'http://example.com/tdd',
+    likes: 5,
+  }
+
+  await api
+    .post('/api/blogs')
+    .send(newBlog)
+    .expect(201)
+    .expect('Content-Type', /application\/json/)
+
+  const response = await api.get('/api/blogs')
+  assert.strictEqual(response.body.length, initialBlogs.length + 1)
+
+  const titles = response.body.map(b => b.title)
+  assert.ok(titles.includes('Test Driven Development'))
+})
+
+test('likes defaults to 0 when missing', async () => {
+  const newBlog = {
+    title: 'A blog with no likes field',
+    author: 'Nobody',
+    url: 'http://example.com/nolikes',
+  }
+
+  const response = await api
+    .post('/api/blogs')
+    .send(newBlog)
+    .expect(201)
+
+  assert.strictEqual(response.body.likes, 0)
+})
+
+test('blog without title is not added', async () => {
+  const newBlog = {
+    author: 'Nobody',
+    url: 'http://example.com/notitle',
+    likes: 3,
+  }
+
+  await api
+    .post('/api/blogs')
+    .send(newBlog)
+    .expect(400)
+})
+
+test('blog without url is not added', async () => {
+  const newBlog = {
+    title: 'A blog with no url',
+    author: 'Nobody',
+    likes: 3,
+  }
+
+  await api
+    .post('/api/blogs')
+    .send(newBlog)
+    .expect(400)
+})
+
 after(async () => {
   await mongoose.connection.close()
 })
